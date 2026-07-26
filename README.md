@@ -85,6 +85,9 @@ behaves on your own material.
   insert or merge a fact.
 - `POST /query {compartment, query, k?}` — top-k facts with a `confidence`
   score.
+- `GET /compartments/{compartment}/checkpoint?k=10` — the `k` most recently
+  updated facts, newest first (recency, not similarity — see "Supervising a
+  second agent" below).
 - `GET /compartments` — list compartments and their sizes.
 - `DELETE /compartments/{compartment}/nodes/{node_id}` — forget a fact.
 
@@ -105,3 +108,35 @@ claude mcp add context-repo -- /path/to/context-repo/.venv/bin/python -m context
 
 Then any Claude Code session can write and query facts as tool calls
 directly, without shelling out to the CLI or running a second process.
+
+## Supervising a second agent (e.g. Antigravity)
+
+The goal isn't just "another AI can read this store" — it's making a
+second, separately-running agent actually defer to prior decisions instead
+of quietly drifting past them over a long session. Two things have to be
+true for that to work, and neither is code-enforceable on its own — an
+agent can't be *forced* to call a tool, only strongly instructed to:
+
+1. **The second agent needs the same MCP server registered.** If it
+   supports MCP (Antigravity does), register the identical
+   `python -m contextrepo.mcp_server` entry the same way you would for
+   Claude Code — check that agent's own settings UI for how it registers
+   MCP servers; this repo doesn't know or touch that config.
+2. **Its persistent instructions need an explicit protocol**, in whatever
+   file it reads at the start of every session. For this project, that's
+   `ANTIGRAVITY_HANDOFF.md` (already read first, per convention). Add
+   something like:
+
+   > Before doing any substantive work, call `context_checkpoint` for the
+   > relevant compartment. Treat what it returns as binding decisions from
+   > prior sessions — don't re-decide them without surfacing the conflict
+   > to the user first. After any material decision (a scope call, a thing
+   > you chose to skip or defer, a discovered blocker), call `context_write`
+   > so the next session — whichever AI picks it up — has it without
+   > needing to re-read the whole handoff history.
+
+`context_checkpoint` (and its HTTP twin, `GET
+/compartments/{compartment}/checkpoint`) returns the most recently updated
+facts in a compartment — a forced recency dump, not a similarity search —
+specifically so it's cheap to call as the very first action of a session,
+before any task-specific reasoning has started.

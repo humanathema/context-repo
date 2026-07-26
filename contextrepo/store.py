@@ -163,6 +163,25 @@ def query(compartment: str, query_text: str, k: int = 5) -> dict:
     return {"results": hits, "confidence": confidence}
 
 
+def recent(compartment: str, k: int = 10) -> list[dict]:
+    """Most-recently-updated facts in a compartment, newest first — a forced
+    recency dump rather than a similarity search. Meant to be pulled at the
+    start of a session, before any task-specific reasoning, so decisions
+    already made in other sessions/compartments are in hand up front instead
+    of being silently re-litigated."""
+    collection = _collection(compartment)
+    if collection.count() == 0:
+        return []
+    n = min(k, collection.count())
+    all_rows = collection.get(include=["documents", "metadatas"])
+    rows = list(zip(all_rows["ids"], all_rows["documents"], all_rows["metadatas"]))
+    rows.sort(key=lambda row: row[2].get("updated_at", ""), reverse=True)
+    return [
+        {"id": node_id, "content": doc, "metadata": meta}
+        for node_id, doc, meta in rows[:n]
+    ]
+
+
 def forget(compartment: str, node_id: str) -> bool:
     collection = _collection(compartment)
     existing = collection.get(ids=[node_id])

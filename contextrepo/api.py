@@ -49,6 +49,12 @@ def query(req: QueryRequest) -> dict:
     return store.query(req.compartment, req.query, req.k)
 
 
+@app.get("/compartments/{compartment}/checkpoint")
+def checkpoint(compartment: str, k: int = 10) -> dict:
+    facts = store.recent(compartment, k)
+    return {"compartment": compartment, "facts": facts, "count": len(facts)}
+
+
 @app.delete("/compartments/{compartment}/nodes/{node_id}")
 def forget(compartment: str, node_id: str) -> dict:
     ok = store.forget(compartment, node_id)

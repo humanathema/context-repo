@@ -35,6 +35,21 @@ def context_query(compartment: str, query: str, k: int = 5) -> dict:
 
 
 @mcp.tool()
+def context_checkpoint(compartment: str, k: int = 10) -> dict:
+    """Call this FIRST, before starting or continuing substantive work in a
+    compartment — not just when something seems relevant. It returns the
+    most recently recorded facts/decisions for that compartment, newest
+    first. Treat these as binding prior decisions from other sessions
+    (possibly a different AI or a different tool), not as suggestions to
+    second-guess: if you're about to do something that conflicts with a
+    fact returned here, stop and surface the conflict to the user rather
+    than proceeding on your own judgment. If the list is empty, that itself
+    is informative — no prior session has recorded anything here yet."""
+    facts = store.recent(compartment, k)
+    return {"compartment": compartment, "facts": facts, "count": len(facts)}
+
+
+@mcp.tool()
 def context_list_compartments() -> list:
     """List every compartment (namespace) in the store along with how many
     facts each currently holds."""
