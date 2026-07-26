@@ -88,5 +88,20 @@ behaves on your own material.
 - `GET /compartments` — list compartments and their sizes.
 - `DELETE /compartments/{compartment}/nodes/{node_id}` — forget a fact.
 
-Any AI tool that can make an HTTP call (or an MCP wrapper around one) can use
-this directly — there's no SDK requirement.
+Any AI tool that can make an HTTP call can use this directly — there's no
+SDK requirement.
+
+## MCP (Claude Code / Claude Desktop)
+
+`contextrepo/mcp_server.py` exposes the store as four MCP tools
+(`context_write`, `context_query`, `context_list_compartments`,
+`context_forget`), running in-process against the same on-disk store the
+HTTP API uses — no server needs to be running separately.
+
+```bash
+pip install -e ".[mcp]"
+claude mcp add context-repo -- /path/to/context-repo/.venv/bin/python -m contextrepo.mcp_server
+```
+
+Then any Claude Code session can write and query facts as tool calls
+directly, without shelling out to the CLI or running a second process.
