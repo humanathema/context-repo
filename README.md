@@ -96,18 +96,69 @@ SDK requirement.
 
 ## MCP (Claude Code / Claude Desktop)
 
-`contextrepo/mcp_server.py` exposes the store as four MCP tools
-(`context_write`, `context_query`, `context_list_compartments`,
-`context_forget`), running in-process against the same on-disk store the
-HTTP API uses — no server needs to be running separately.
+`contextrepo/mcp_server.py` exposes the store as five MCP tools
+(`context_write`, `context_query`, `context_checkpoint`,
+`context_list_compartments`, `context_forget`), running against the same
+on-disk store the HTTP API uses.
+
+It serves over **streamable-http, bound to `0.0.0.0:8421`** — reachable
+from any host that can route to this machine, with no authentication. This
+is a deliberate choice to let a second agent on another machine (or a
+tunnel) reach the same store, but it means anything written here is
+readable/writable by anyone who can reach that port. Don't run this on a
+network you don't trust, and don't ingest anything sensitive into it (see
+the `ingest.py` allowlist note below for the same concern from the other
+direction).
 
 ```bash
 pip install -e ".[mcp]"
-claude mcp add context-repo -- /path/to/context-repo/.venv/bin/python -m contextrepo.mcp_server
+python -m contextrepo.mcp_server   # listens on 0.0.0.0:8421
+claude mcp add --transport http context-repo http://localhost:8421
 ```
 
 Then any Claude Code session can write and query facts as tool calls
-directly, without shelling out to the CLI or running a second process.
+directly, without shelling out to the CLI.
+
+## Ingesting existing project docs
+
+`contextrepo/ingest.py` walks a projects root, finds convention docs
+(`CLAUDE.md`, `README.md`, anything with "handoff" in the filename), and
+loads them into the store: one `project_index` fact per project (what it
+is, where it lives, which docs were found), plus the actual doc content
+chunked by markdown heading into a per-project compartment (the folder
+name, slugified).
+
+```bash
+python -m contextrepo.ingest ~/Projects --dry-run   # see what would be written
+python -m contextrepo.ingest ~/Projects --allowlist allowed_projects.txt
+```
+
+By default (no `--allowlist`) it walks **every** top-level folder under
+root — only do that for a root you fully trust, since the MCP server has
+no auth (see above) and this content becomes queryable by anything that
+can reach it. Re-running is safe: unchanged chunks re-embed to ~1.0
+similarity and merge in place via the store's normal merge-on-conflict
+behavior, so nothing duplicates.
+
+## Drafting a handoff from git + stored facts
+
+`contextrepo/handoff.py` drafts a handoff document from deterministic
+signal only — git log/diffstat and this project's own recorded facts —
+never generated prose. It exists for the concrete failure mode of running
+out of context/tokens before writing a handoff and drifting several
+commits ahead of documentation.
+
+```bash
+python -m contextrepo.handoff /path/to/repo compartment_name
+python -m contextrepo.handoff /path/to/repo compartment_name --out DRAFT.md
+python -m contextrepo.handoff /path/to/repo compartment_name --mark-reviewed
+```
+
+The commit range shown is `upstream..HEAD` if the repo has an upstream
+branch, else `last-mark-reviewed..HEAD`, else the last 20 commits with a
+note that there's no baseline to anchor to. This produces a **draft to
+review and fold into the real handoff doc yourself**, not a replacement
+for writing one.
 
 ## Supervising a second agent (e.g. Antigravity)
 

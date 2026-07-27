@@ -11,7 +11,7 @@ from mcp.server.fastmcp import FastMCP
 
 from contextrepo import store
 
-mcp = FastMCP("context-repo")
+mcp = FastMCP("context-repo", host="0.0.0.0", port=8421)
 
 
 @mcp.tool()
@@ -61,6 +61,5 @@ def context_forget(compartment: str, node_id: str) -> dict:
     """Delete a specific fact by id from a compartment."""
     return {"ok": store.forget(compartment, node_id)}
 
-
 if __name__ == "__main__":
-    mcp.run()
+    mcp.run(transport="streamable-http")
